@@ -6,10 +6,13 @@ namespace App\Services;
 
 use App\Enums\OrderStatus;
 use App\Enums\PaymentMethod;
+use App\Events\SupportMessageSent;
 use App\Models\Category;
 use App\Models\CustomerSession;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\SupportConversation;
+use App\Models\SupportMessage;
 use Illuminate\Support\Facades\DB;
 
 class WebhookService
@@ -30,11 +33,23 @@ class WebhookService
             return $this->handleReset($session);
         }
 
+        if ($session->step === CustomerSession::STEP_SUPPORT) {
+            return $this->handleSupport($session, $message);
+        }
+
         $isInFlow = ! in_array($session->step, [
             CustomerSession::STEP_MAIN_MENU,
             CustomerSession::STEP_AWAITING_CATEGORY_SELECTION,
             CustomerSession::STEP_AWAITING_PRODUCT_SELECTION,
         ]);
+
+        if ($isInFlow && $intent && $intent !== 'other' && ! ctype_digit($message)) {
+            return $this->reply(
+                "⚠️ أنت في منتصف طلب!\n\n" .
+                "لو عايز تكمل، رد على السؤال اللي فوق 👆\n" .
+                "لو عايز تلغي وترجع للقائمة، اكتب *رجوع* ❌"
+            );
+        }
 
         if (! $isInFlow && $intent && $intent !== 'other' && ! ctype_digit($message)) {
             return match ($intent) {
@@ -81,6 +96,7 @@ class WebhookService
     {
         if ($message === '1') return $this->handleBrowseCategories($session);
         if ($message === '2') return $this->handleShowOrderTracking($session);
+        if ($this->isSupportCommand($message)) return $this->startSupport($session);
         if (! ctype_digit($message)) return $this->handleProductSearch($session, $message);
         return $this->handleMainMenu($session);
     }
@@ -97,7 +113,8 @@ class WebhookService
         return $this->reply(
             "👋 أهلاً بيك في Smart Store\n\n" .
             "1️⃣ تصفح الأقسام\n" .
-            "2️⃣ تابع طلباتك 📦\n\n" .
+            "2️⃣ تابع طلباتك 📦\n" .
+            "3️⃣ تواصل مع الدعم 💬\n\n" .
             "أو اكتب اسم المنتج مباشرة 🔎"
         );
     }
@@ -106,11 +123,6 @@ class WebhookService
 
     private function handleShowOrderTracking(CustomerSession $session): array
     {
-        /*
-        |--------------------------------------------------------------
-        | أول ما يضغط 2، نجيب طلباته الأخيرة مباشرة من غير ما يكتب رقم
-        |--------------------------------------------------------------
-        */
         $orders = Order::where('customer_phone', $session->phone)
             ->whereNotIn('status', [OrderStatus::CANCELLED])
             ->with('product')
@@ -123,19 +135,17 @@ class WebhookService
         }
 
         if ($orders->count() === 1) {
-            // لو طلب واحد بس، اعرضه مباشرة
             return $this->showOrderDetails($orders->first());
         }
 
-        // لو أكتر من طلب، اعرض قايمة
         $lines = ["📦 طلباتك الأخيرة:\n"];
 
         foreach ($orders as $i => $order) {
-            $num          = $i + 1;
-            $statusLabel  = $order->status->label();
-            $productName  = $order->product?->name ?? 'منتج';
-            $lines[]      = "{$num}️⃣ طلب #{$order->id} — {$productName}";
-            $lines[]      = "   الحالة: {$statusLabel}\n";
+            $num         = $i + 1;
+            $statusLabel = $order->status->label();
+            $productName = $order->product?->name_ar ?: $order->product?->name ?? 'منتج';
+            $lines[]     = "{$num}️⃣ طلب #{$order->id} — {$productName}";
+            $lines[]     = "   الحالة: {$statusLabel}\n";
         }
 
         $lines[] = "رد برقم الطلب عشان تشوف التفاصيل 👇";
@@ -181,14 +191,9 @@ class WebhookService
     private function showOrderDetails(Order $order): array
     {
         $statusLabel  = $order->status->label();
-        $productName  = $order->product?->name ?? 'منتج';
+        $productName  = $order->product?->name_ar ?: $order->product?->name ?? 'منتج';
         $paymentLabel = $order->payment_method->label();
 
-        /*
-        |--------------------------------------------------------------
-        | Progress bar بسيط حسب الحالة
-        |--------------------------------------------------------------
-        */
         $progress = match ($order->status) {
             OrderStatus::PENDING, OrderStatus::PENDING_PAYMENT => "⬜⬜⬜⬜ في الانتظار",
             OrderStatus::PAID                                  => "🟩⬜⬜⬜ تم الدفع",
@@ -221,7 +226,8 @@ class WebhookService
 
         $lines = ["📂 الأقسام المتاحة:\n"];
         foreach ($categories as $i => $category) {
-            $lines[] = ($i + 1) . "️⃣ {$category->name}";
+            $displayName = $category->name_ar ?: $category->name;
+            $lines[]     = ($i + 1) . "️⃣ {$displayName}";
         }
         $lines[] = "\nرد برقم القسم 👇";
 
@@ -239,21 +245,24 @@ class WebhookService
 
         if (! isset($categories[$index])) return $this->reply("⚠️ رقم غير صحيح.");
 
-        $category = $categories[$index];
-        $products = $category->products()->active()->inStock()->take(10)->get();
+        $category    = $categories[$index];
+        $products    = $category->products()->active()->inStock()->take(10)->get();
+        $displayName = $category->name_ar ?: $category->name;
 
         if ($products->isEmpty()) return $this->reply("😕 لا يوجد منتجات في هذا القسم.");
 
-        return $this->showProductList($session, $products, "🛍 منتجات {$category->name}:");
+        return $this->showProductList($session, $products, "🛍 منتجات {$displayName}:");
     }
 
     /* ================= PRODUCTS ================= */
 
     private function handleProductSearch(CustomerSession $session, string $message): array
     {
-        $products = Product::active()->inStock()->search($message)->take(10)->get();
+        $products = $this->productService->search($message);
 
-        if ($products->isEmpty()) return $this->reply("😕 ملقيناش منتجات مطابقة لبحثك.");
+        if ($products->isEmpty()) {
+            return $this->reply("😕 ملقيناش منتجات مطابقة لـ \"{$message}\".\n\nجرب تكتب اسم تاني 🔎");
+        }
 
         return $this->showProductList($session, $products, "🔎 نتائج البحث:");
     }
@@ -264,14 +273,20 @@ class WebhookService
         $map   = [];
 
         foreach ($products as $i => $product) {
-            $lines[] = ($i + 1) . "️⃣ {$product->name}";
-            $lines[] = "💰 {$product->price} EGP\n";
-            $map[]   = ['id' => $product->id];
+            $displayName = $product->name_ar ?: $product->name;
+            $lines[]     = ($i + 1) . "️⃣ {$displayName}";
+            $lines[]     = "💰 {$product->price} EGP\n";
+            $map[]       = ['id' => $product->id];
         }
 
-        $lines[] = "رد برقم المنتج 👇";
+        $lines[] = "رد برقم المنتج 👇\n";
+        $lines[] = "_(اكتب *رجوع* للقائمة الرئيسية)_";
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_PRODUCT_SELECTION, context: ['search_results' => $map]);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_PRODUCT_SELECTION,
+            context: ['search_results' => $map]
+        );
 
         return $this->reply(implode("\n", $lines));
     }
@@ -290,15 +305,23 @@ class WebhookService
 
         if (! $product) return $this->handleMainMenu($session);
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_PAYMENT_METHOD, context: null, productId: $product->id);
+        $displayName = $product->name_ar ?: $product->name;
+
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_PAYMENT_METHOD,
+            context: null,
+            productId: $product->id
+        );
 
         return $this->reply(
-            "✨ {$product->name}\n" .
+            "✨ {$displayName}\n" .
             "💰 السعر: {$product->price} EGP\n\n" .
             "💳 طريقة الدفع:\n" .
             "1️⃣ كاش\n" .
             "2️⃣ فيزا\n\n" .
-            "رد بـ 1 أو 2 👇"
+            "رد بـ 1 أو 2 👇\n" .
+            "_(اكتب *رجوع* للإلغاء)_"
         );
     }
 
@@ -310,86 +333,161 @@ class WebhookService
 
         $method = $this->parsePaymentMethod($message);
 
-        if (! $method) return $this->reply("⚠️ من فضلك اختاري 1 أو 2.");
+        if (! $method) return $this->reply("⚠️ من فضلك اختاري 1 أو 2.\n_(اكتب *رجوع* للإلغاء)_");
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_NAME, context: ['payment_method' => $method->value], productId: $session->product_id);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_NAME,
+            context: ['payment_method' => $method->value],
+            productId: $session->product_id
+        );
 
-        return $this->reply("👤 اكتب اسمك الكامل من فضلك:");
+        return $this->reply(
+            "👤 اكتب اسمك الكامل من فضلك:\n" .
+            "_(اكتب *رجوع* للإلغاء)_"
+        );
     }
 
     /* ================= COLLECT ORDER DETAILS ================= */
 
     private function handleName(CustomerSession $session, string $message): array
     {
-        if (mb_strlen($message) < 3) return $this->reply("⚠️ من فضلك اكتب اسمك كامل (3 حروف على الأقل).");
+        if (mb_strlen($message) < 3) {
+            return $this->reply(
+                "⚠️ من فضلك اكتب اسمك كامل (3 حروف على الأقل).\n" .
+                "_(اكتب *رجوع* للإلغاء)_"
+            );
+        }
 
         $context         = $session->context ?? [];
         $context['name'] = $message;
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_QUANTITY, context: $context, productId: $session->product_id);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_QUANTITY,
+            context: $context,
+            productId: $session->product_id
+        );
 
-        $product = Product::find($session->product_id);
+        $product     = Product::find($session->product_id);
+        $displayName = $product->name_ar ?: $product->name;
 
         return $this->reply(
-            "🛒 كام قطعة عايز تطلب؟\n" .
+            "🛒 كام قطعة عايز تطلب من *{$displayName}*؟\n" .
             "📦 المتاح: {$product->stock} قطعة\n\n" .
-            "اكتب الكمية 👇"
+            "اكتب الكمية 👇\n" .
+            "_(اكتب *رجوع* للإلغاء)_"
         );
     }
 
     private function handleQuantity(CustomerSession $session, string $message): array
     {
-        if (! ctype_digit($message) || (int) $message < 1) return $this->reply("⚠️ من فضلك اكتب كمية صحيحة.");
+        if (! ctype_digit($message) || (int) $message < 1) {
+            return $this->reply(
+                "⚠️ من فضلك اكتب كمية صحيحة.\n" .
+                "_(اكتب *رجوع* للإلغاء)_"
+            );
+        }
 
         $quantity = (int) $message;
         $product  = Product::find($session->product_id);
 
-        if (! $product || $product->stock < $quantity) return $this->reply("⚠️ المتاح في المخزن فقط {$product->stock} قطعة.");
+        if (! $product || $product->stock < $quantity) {
+            return $this->reply(
+                "⚠️ المتاح في المخزن فقط {$product->stock} قطعة.\n" .
+                "_(اكتب *رجوع* للإلغاء)_"
+            );
+        }
 
         $context             = $session->context ?? [];
         $context['quantity'] = $quantity;
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_GOVERNORATE, context: $context, productId: $session->product_id);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_GOVERNORATE,
+            context: $context,
+            productId: $session->product_id
+        );
 
-        return $this->reply("📍 اكتب اسم المحافظة:");
+        return $this->reply(
+            "📍 اكتب اسم المحافظة:\n" .
+            "_(اكتب *رجوع* للإلغاء)_"
+        );
     }
 
     private function handleGovernorate(CustomerSession $session, string $message): array
     {
-        if (mb_strlen($message) < 2) return $this->reply("⚠️ من فضلك اكتب اسم المحافظة.");
+        if (mb_strlen($message) < 2) {
+            return $this->reply(
+                "⚠️ من فضلك اكتب اسم المحافظة.\n" .
+                "_(اكتب *رجوع* للإلغاء)_"
+            );
+        }
 
         $context                = $session->context ?? [];
         $context['governorate'] = $message;
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_CITY, context: $context, productId: $session->product_id);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_CITY,
+            context: $context,
+            productId: $session->product_id
+        );
 
-        return $this->reply("🏙 اكتب اسم المدينة أو المنطقة:");
+        return $this->reply(
+            "🏙 اكتب اسم المدينة أو المنطقة:\n" .
+            "_(اكتب *رجوع* للإلغاء)_"
+        );
     }
 
     private function handleCity(CustomerSession $session, string $message): array
     {
-        if (mb_strlen($message) < 2) return $this->reply("⚠️ من فضلك اكتب اسم المدينة.");
+        if (mb_strlen($message) < 2) {
+            return $this->reply(
+                "⚠️ من فضلك اكتب اسم المدينة.\n" .
+                "_(اكتب *رجوع* للإلغاء)_"
+            );
+        }
 
         $context         = $session->context ?? [];
         $context['city'] = $message;
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_STREET, context: $context, productId: $session->product_id);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_STREET,
+            context: $context,
+            productId: $session->product_id
+        );
 
-        return $this->reply("🏠 اكتب العنوان بالتفصيل (الشارع + رقم البيت):");
+        return $this->reply(
+            "🏠 اكتب العنوان بالتفصيل (الشارع + رقم البيت):\n" .
+            "_(اكتب *رجوع* للإلغاء)_"
+        );
     }
 
     private function handleStreet(CustomerSession $session, string $message): array
     {
-        if (mb_strlen($message) < 5) return $this->reply("⚠️ من فضلك اكتب العنوان بشكل أوضح.");
+        if (mb_strlen($message) < 5) {
+            return $this->reply(
+                "⚠️ من فضلك اكتب العنوان بشكل أوضح.\n" .
+                "_(اكتب *رجوع* للإلغاء)_"
+            );
+        }
 
         $context           = $session->context ?? [];
         $context['street'] = $message;
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_NOTES, context: $context, productId: $session->product_id);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_NOTES,
+            context: $context,
+            productId: $session->product_id
+        );
 
         return $this->reply(
             "📝 في أي ملاحظات إضافية للطلب؟\n" .
-            "(اكتب الملاحظة أو اكتب *لا* للتخطي)"
+            "(اكتب الملاحظة أو اكتب *لا* للتخطي)\n" .
+            "_(اكتب *رجوع* للإلغاء)_"
         );
     }
 
@@ -398,18 +496,24 @@ class WebhookService
         $context          = $session->context ?? [];
         $context['notes'] = in_array(mb_strtolower($message), ['لا', 'no', '-', 'لأ']) ? null : $message;
 
-        $product  = Product::find($session->product_id);
-        $quantity = (int) ($context['quantity'] ?? 1);
-        $total    = $product->price * $quantity;
+        $product     = Product::find($session->product_id);
+        $quantity    = (int) ($context['quantity'] ?? 1);
+        $total       = $product->price * $quantity;
+        $displayName = $product->name_ar ?: $product->name;
 
-        $this->sessionService->updateStep($session, CustomerSession::STEP_AWAITING_CONFIRM, context: $context, productId: $session->product_id);
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_AWAITING_CONFIRM,
+            context: $context,
+            productId: $session->product_id
+        );
 
         $paymentLabel = PaymentMethod::from($context['payment_method'])->label();
 
         return $this->reply(
             "📋 تأكيد الطلب:\n\n" .
             "👤 الاسم: {$context['name']}\n" .
-            "📦 المنتج: {$product->name}\n" .
+            "📦 المنتج: {$displayName}\n" .
             "🔢 الكمية: {$quantity}\n" .
             "💰 الإجمالي: {$total} EGP\n" .
             "📍 المحافظة: {$context['governorate']}\n" .
@@ -440,15 +544,15 @@ class WebhookService
             if ($recentOrder) return $this->reply("⏳ تم استلام طلبك بالفعل.");
 
             $order = $this->orderService->create([
-                'product_id'      => $session->product_id,
-                'customer_phone'  => $session->phone,
-                'customer_name'   => $context['name']         ?? null,
-                'payment_method'  => $context['payment_method'],
-                'quantity'        => $context['quantity']      ?? 1,
-                'governorate'     => $context['governorate']   ?? null,
-                'city'            => $context['city']          ?? null,
-                'street'          => $context['street']        ?? null,
-                'notes'           => $context['notes']         ?? null,
+                'product_id'     => $session->product_id,
+                'customer_phone' => $session->phone,
+                'customer_name'  => $context['name']        ?? null,
+                'payment_method' => $context['payment_method'],
+                'quantity'       => $context['quantity']     ?? 1,
+                'governorate'    => $context['governorate']  ?? null,
+                'city'           => $context['city']         ?? null,
+                'street'         => $context['street']       ?? null,
+                'notes'          => $context['notes']        ?? null,
             ]);
 
             $this->sessionService->reset($session);
@@ -473,6 +577,91 @@ class WebhookService
         });
     }
 
+    /* ================= SUPPORT ================= */
+
+    private function startSupport(CustomerSession $session): array
+    {
+        $conversation = $this->getOrCreateSupportConversation($session);
+
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_SUPPORT,
+            context: ['support_conversation_id' => $conversation->id],
+        );
+
+        SupportMessage::create([
+            'conversation_id' => $conversation->id,
+            'sender'          => 'customer',
+            'message'         => 'بدأ العميل محادثة الدعم من القائمة الرئيسية.',
+            'is_read'         => false,
+        ]);
+
+        return $this->reply(
+            "💬 تم تحويلك إلى فريق الدعم.\n\n" .
+            "اكتب سؤالك أو مشكلتك دلوقتي وهتوصل للمسؤول مباشرة 🙌\n\n" .
+            "_(اكتب *رجوع* للقائمة الرئيسية)_"
+        );
+    }
+
+   private function handleSupport(CustomerSession $session, string $message): array
+{
+    $conversation = $this->getOrCreateSupportConversation($session);
+
+   $supportMessage = SupportMessage::create([
+    'conversation_id' => $conversation->id,
+    'sender'          => 'customer',
+    'message'         => $message,
+    'is_read'         => false,
+]);
+
+    return $this->reply(
+        "✅ تم استلام رسالتك.\n" .
+        "فريق الدعم هيراجعها وهيرد عليك هنا في أسرع وقت 🙏\n\n" .
+        "_(اكتب *رجوع* للقائمة الرئيسية)_"
+    );
+}
+
+ private function getOrCreateSupportConversation(CustomerSession $session): SupportConversation
+{
+    $conversationId = data_get($session->context, 'support_conversation_id');
+
+    if ($conversationId) {
+        $existing = SupportConversation::find($conversationId);
+        if ($existing && $existing->status !== 'closed') {
+            return $existing;
+        }
+    }
+
+    // دور على محادثة مفتوحة لنفس الرقم أولاً
+    $existing = SupportConversation::where('customer_phone', $session->phone)
+        ->whereIn('status', ['open', 'in_progress'])
+        ->latest()
+        ->first();
+
+    if ($existing) {
+        $context = $session->context ?? [];
+        $context['support_conversation_id'] = $existing->id;
+        $this->sessionService->updateStep(
+            $session,
+            CustomerSession::STEP_SUPPORT,
+            context: $context
+        );
+        return $existing;
+    }
+
+    return SupportConversation::create([
+        'customer_phone' => $session->phone,
+        'customer_name'  => data_get($session->context, 'name'),
+        'status'         => 'open',
+    ]);
+}
+    private function isSupportCommand(string $message): bool
+    {
+        return in_array(mb_strtolower(trim($message)), [
+            '3', 'دعم', 'مساعدة', 'support', 'help',
+        ], true);
+    }
+
     /* ================= UTILITIES ================= */
 
     private function handleReset(CustomerSession $session): array
@@ -483,7 +672,10 @@ class WebhookService
 
     private function isResetCommand(string $message): bool
     {
-        return in_array(strtolower($message), ['cancel', 'reset', 'menu', 'start', '0', '/start', 'إلغاء', 'رجوع'], true);
+        return in_array(strtolower($message), [
+            'cancel', 'reset', 'menu', 'start', '0', '/start',
+            'إلغاء', 'رجوع', 'الرئيسية', 'قائمة', 'البداية',
+        ], true);
     }
 
     private function parsePaymentMethod(string $input): ?PaymentMethod

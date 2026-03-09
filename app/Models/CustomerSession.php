@@ -36,6 +36,7 @@ class CustomerSession extends Model
 
     /* ---------------- Relationships ---------------- */
     public const STEP_AWAITING_ORDER_TRACKING = 'awaiting_order_tracking';
+    public const STEP_SUPPORT = 'support';
 
     public function product(): BelongsTo
     {

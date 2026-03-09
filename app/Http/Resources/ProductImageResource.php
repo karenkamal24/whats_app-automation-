@@ -19,3 +19,6 @@ class ProductImageResource extends JsonResource
 
 
 
+
+
+

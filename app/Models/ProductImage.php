@@ -43,3 +43,6 @@ class ProductImage extends Model
     }
 }
 
+
+
+

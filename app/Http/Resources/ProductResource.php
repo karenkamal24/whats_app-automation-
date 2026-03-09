@@ -24,3 +24,6 @@ class ProductResource extends JsonResource
 
 
 
+
+
+

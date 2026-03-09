@@ -109,4 +109,12 @@ class WhatsAppNotificationService
             ]);
         }
     }
+
+    /**
+     * Send a custom WhatsApp message (used by support chat, etc.).
+     */
+    public function sendMessage(string $phone, string $message): void
+    {
+        $this->send($phone, $message);
+    }
 }
