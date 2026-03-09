@@ -603,22 +603,18 @@ class WebhookService
         );
     }
 
-   private function handleSupport(CustomerSession $session, string $message): array
+private function handleSupport(CustomerSession $session, string $message): array
 {
     $conversation = $this->getOrCreateSupportConversation($session);
 
-   $supportMessage = SupportMessage::create([
-    'conversation_id' => $conversation->id,
-    'sender'          => 'customer',
-    'message'         => $message,
-    'is_read'         => false,
-]);
+    SupportMessage::create([
+        'conversation_id' => $conversation->id,
+        'sender'          => 'customer',
+        'message'         => $message,
+        'is_read'         => false,
+    ]);
 
-    return $this->reply(
-        "✅ تم استلام رسالتك.\n" .
-        "فريق الدعم هيراجعها وهيرد عليك هنا في أسرع وقت 🙏\n\n" .
-        "_(اكتب *رجوع* للقائمة الرئيسية)_"
-    );
+    return ['reply' => null]; 
 }
 
  private function getOrCreateSupportConversation(CustomerSession $session): SupportConversation

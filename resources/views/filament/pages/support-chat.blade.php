@@ -46,16 +46,18 @@
                     @forelse($activeConversation->messages as $msg)
                         <div class="flex {{ $msg->sender === 'agent' ? 'justify-end' : 'justify-start' }}"
                              data-msg-id="{{ $msg->id }}">
-                            <div class="max-w-sm px-4 py-2 rounded-xl text-sm shadow-sm
-                                {{ $msg->sender === 'agent'
-                                    ? 'bg-primary-600 text-white rounded-br-none'
-                                    : 'bg-white dark:bg-gray-700 dark:text-white border rounded-bl-none' }}">
-                                <p class="whitespace-pre-wrap">{{ $msg->message }}</p>
-                                <div class="text-[10px] mt-1 opacity-60 text-right">
-                                    {{ $msg->created_at->format('H:i') }}
-                                    @if($msg->sender === 'agent') · موظف @endif
-                                </div>
-                            </div>
+                          <div class="max-w-sm px-4 py-2 rounded-xl text-sm shadow-sm
+                    {{ $msg->sender === 'agent'
+                        ? 'bg-blue-500 text-white rounded-br-none'
+                        : 'bg-white dark:bg-gray-700 dark:text-white border rounded-bl-none' }}">
+
+                        <p class="whitespace-pre-wrap">{{ $msg->message }}</p>
+
+                    <div class="text-[10px] mt-1 text-black-600 text-right">
+                        {{ $msg->created_at->format('H:i') }}
+                        @if($msg->sender === 'agent') · موظف @endif
+                    </div>
+                    </div>
                         </div>
                     @empty
                         <div data-empty class="text-center text-gray-400 text-sm mt-8">
