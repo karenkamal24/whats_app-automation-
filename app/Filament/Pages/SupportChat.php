@@ -26,8 +26,8 @@ class SupportChat extends Page implements HasForms, HasTable
     use InteractsWithTable;
 
     protected static ?string $navigationIcon  = 'heroicon-o-chat-bubble-left-right';
-    protected static ?string $navigationLabel = 'دعم العملاء';
-    protected static ?string $navigationGroup = 'الدعم';
+    protected static ?string $navigationLabel ='support chat';
+    protected static ?string $navigationGroup = 'support';
     protected static string  $view            = 'filament.pages.support-chat';
 
     public ?int    $activeConversationId = null;
