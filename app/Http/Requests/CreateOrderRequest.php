@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Order;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Enums\PaymentMethod;
 use Illuminate\Validation\Rule;
 
 class CreateOrderRequest extends FormRequest
@@ -21,16 +21,21 @@ class CreateOrderRequest extends FormRequest
                 'integer',
                 Rule::exists('products', 'id')->where('is_active', true),
             ],
+
             'customer_phone' => [
                 'required',
                 'string',
                 'max:20',
                 'regex:/^\+?[0-9]{10,15}$/',
             ],
+
             'payment_method' => [
                 'required',
                 'string',
-                Rule::in([Order::PAYMENT_CASH, Order::PAYMENT_VISA]),
+                Rule::in([
+                    PaymentMethod::CASH->value,
+                    PaymentMethod::VISA->value,
+                ]),
             ],
         ];
     }
@@ -38,15 +43,9 @@ class CreateOrderRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'product_id.exists'         => 'The selected product is not available.',
-            'customer_phone.regex'      => 'Phone number must be a valid international format.',
-            'payment_method.in'         => 'Payment method must be either cash or visa.',
+            'product_id.exists'    => 'The selected product is not available.',
+            'customer_phone.regex' => 'Phone number must be a valid international format.',
+            'payment_method.in'    => 'Payment method must be either cash or visa.',
         ];
     }
 }
-
-
-
-
-
-

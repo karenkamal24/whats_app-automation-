@@ -2,6 +2,7 @@
 
 namespace App\Enums;
 
+
 enum OrderStatus: string
 {
     case PENDING         = 'pending';
@@ -12,7 +13,7 @@ enum OrderStatus: string
     case DELIVERED       = 'delivered';
     case CANCELLED       = 'cancelled';
 
-   
+
     public static function adminAllowed(): array
     {
         return [

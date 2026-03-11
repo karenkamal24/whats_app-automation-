@@ -15,15 +15,15 @@ class ProductController extends Controller
         private readonly ProductService $productService,
     ) {}
 
- 
+
     public function search(Request $request): JsonResponse
     {
         $name = trim($request->query('name', ''));
 
         if ($name === '') {
-            return ApiResponse::error(
-                message: 'Search term is required.',
-                status: 422
+            return ApiResponse::send(
+                code: 422,
+                message: 'Search term is required.'
             );
         }
 
