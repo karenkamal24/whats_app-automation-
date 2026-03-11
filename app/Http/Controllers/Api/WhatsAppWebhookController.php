@@ -14,9 +14,7 @@ class WhatsAppWebhookController extends Controller
         private readonly WebhookService $webhookService,
     ) {}
 
-    /**
-     * POST /api/v1/whatsapp/webhook
-     */
+   
     public function __invoke(WhatsAppWebhookRequest $request): JsonResponse
     {
         $validated = $request->validated();

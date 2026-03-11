@@ -21,22 +21,13 @@ class ProductImage extends Model
         ];
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
-    /* ------------------------------------------------------------------ */
 
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * Get full public URL for the image.
-     */
+    
     public function getUrlAttribute(): string
     {
         return asset(Storage::disk('public')->url($this->path));

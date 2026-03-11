@@ -100,32 +100,34 @@ class Product extends Model
         });
     }
 
-    public function scopeSearchWordsStrict($query, array $words)
-    {
-        return $query->where(function ($query) use ($words) {
+ public function scopeSearchWordsStrict($query, array $words)
+{
+    return $query->where(function ($query) use ($words) {
 
-            foreach ($words as $word) {
+        foreach ($words as $word) {
 
-                $query->where(function ($q) use ($word) {
+            $query->where(function ($q) use ($word) {
 
-                    if (is_numeric($word)) {
+                if (is_numeric($word)) {
 
-                        $q->whereRaw("name REGEXP ?", ["[[:<:]]{$word}[[:>:]]"])
-                          ->orWhereRaw("name_ar REGEXP ?", ["[[:<:]]{$word}[[:>:]]"])
-                          ->orWhereRaw("keywords REGEXP ?", ["[[:<:]]{$word}[[:>:]]"]);
+                    $pattern = '\\b' . preg_quote($word, '/') . '\\b';
 
-                    } else {
+                    $q->whereRaw("name REGEXP ?", [$pattern])
+                      ->orWhereRaw("name_ar REGEXP ?", [$pattern])
+                      ->orWhereRaw("keywords REGEXP ?", [$pattern]);
 
-                        $q->where('name', 'LIKE', "%{$word}%")
-                          ->orWhere('name_ar', 'LIKE', "%{$word}%")
-                          ->orWhere('keywords', 'LIKE', "%{$word}%");
+                } else {
 
-                    }
+                    $q->where('name', 'LIKE', "%{$word}%")
+                      ->orWhere('name_ar', 'LIKE', "%{$word}%")
+                      ->orWhere('keywords', 'LIKE', "%{$word}%");
 
-                });
+                }
 
-            }
+            });
 
-        });
-    }
+        }
+
+    });
+}
 }

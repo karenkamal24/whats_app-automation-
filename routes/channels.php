@@ -7,5 +7,5 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('support.{conversationId}', function () {
-    return true; // public channel يقدر يسمع — كل حد
+    return true; 
 });

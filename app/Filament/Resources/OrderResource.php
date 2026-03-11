@@ -159,11 +159,7 @@ class OrderResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
 
-                /*
-                |----------------------------------------------------------
-                | Action to update status and automatically send WhatsApp
-                |----------------------------------------------------------
-                */
+
                 Tables\Actions\Action::make('updateStatus')
                     ->label('Update Status')
                     ->icon('heroicon-o-arrow-path')
@@ -196,11 +192,7 @@ class OrderResource extends Resource
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                /*
-                |----------------------------------------------------------
-                | Bulk action to update multiple orders at once
-                |----------------------------------------------------------
-                */
+
                 Tables\Actions\BulkAction::make('bulkUpdateStatus')
                     ->label('Update Selected Status')
                     ->icon('heroicon-o-arrow-path')
@@ -231,10 +223,7 @@ class OrderResource extends Resource
             ]);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Pages                                                              */
-    /* ------------------------------------------------------------------ */
-
+   
     public static function getRelations(): array
     {
         return [];

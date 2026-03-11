@@ -37,9 +37,6 @@ class WhatsAppNotificationService
         }
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Messages                                                           */
-    /* ------------------------------------------------------------------ */
 
     private function paidMessage(Order $order, string $productName): string
     {
@@ -91,9 +88,7 @@ class WhatsAppNotificationService
             "لو في أي مشكلة تواصل معانا 💬";
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  HTTP                                                               */
-    /* ------------------------------------------------------------------ */
+
 
     private function send(string $phone, string $message): void
     {
@@ -110,9 +105,7 @@ class WhatsAppNotificationService
         }
     }
 
-    /**
-     * Send a custom WhatsApp message (used by support chat, etc.).
-     */
+   
     public function sendMessage(string $phone, string $message): void
     {
         $this->send($phone, $message);

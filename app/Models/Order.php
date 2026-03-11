@@ -37,18 +37,14 @@ class Order extends Model
         ];
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
-    /* ------------------------------------------------------------------ */
+   
 
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Scopes                                                             */
-    /* ------------------------------------------------------------------ */
+
 
     public function scopeByPhone($query, string $phone)
     {
@@ -60,9 +56,7 @@ class Order extends Model
         return $query->where('status', $status->value);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Helpers                                                            */
-    /* ------------------------------------------------------------------ */
+
 
     public function isPaid(): bool
     {

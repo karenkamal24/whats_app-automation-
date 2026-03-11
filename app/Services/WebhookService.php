@@ -90,7 +90,6 @@ class WebhookService
         };
     }
 
-    /* ================= MAIN MENU ================= */
 
     private function handleMainMenuInput(CustomerSession $session, string $message): array
     {
@@ -119,7 +118,6 @@ class WebhookService
         );
     }
 
-    /* ================= ORDER TRACKING ================= */
 
     private function handleShowOrderTracking(CustomerSession $session): array
     {
@@ -216,7 +214,6 @@ class WebhookService
         );
     }
 
-    /* ================= CATEGORIES ================= */
 
     private function handleBrowseCategories(CustomerSession $session): array
     {
@@ -254,7 +251,6 @@ class WebhookService
         return $this->showProductList($session, $products, "🛍 منتجات {$displayName}:");
     }
 
-    /* ================= PRODUCTS ================= */
 
     private function handleProductSearch(CustomerSession $session, string $message): array
     {
@@ -305,6 +301,10 @@ class WebhookService
 
         if (! $product) return $this->handleMainMenu($session);
 
+
+        $product->loadMissing('images');
+        $imageUrl = $product->images->first()?->url;
+
         $displayName = $product->name_ar ?: $product->name;
 
         $this->sessionService->updateStep(
@@ -314,18 +314,20 @@ class WebhookService
             productId: $product->id
         );
 
-        return $this->reply(
-            "✨ {$displayName}\n" .
-            "💰 السعر: {$product->price} EGP\n\n" .
-            "💳 طريقة الدفع:\n" .
-            "1️⃣ كاش\n" .
-            "2️⃣ فيزا\n\n" .
-            "رد بـ 1 أو 2 👇\n" .
-            "_(اكتب *رجوع* للإلغاء)_"
-        );
+        $text = "✨ {$displayName}\n" .
+                "💰 السعر: {$product->price} EGP\n\n" .
+                "💳 طريقة الدفع:\n" .
+                "1️⃣ كاش\n" .
+                "2️⃣ فيزا\n\n" .
+                "رد بـ 1 أو 2 👇\n" .
+                "_(اكتب *رجوع* للإلغاء)_";
+
+
+        return $imageUrl
+            ? ['reply' => $text, 'image_url' => $imageUrl]
+            : ['reply' => $text];
     }
 
-    /* ================= PAYMENT METHOD ================= */
 
     private function handlePaymentMethod(CustomerSession $session, string $message): array
     {
@@ -348,7 +350,6 @@ class WebhookService
         );
     }
 
-    /* ================= COLLECT ORDER DETAILS ================= */
 
     private function handleName(CustomerSession $session, string $message): array
     {
@@ -577,7 +578,6 @@ class WebhookService
         });
     }
 
-    /* ================= SUPPORT ================= */
 
     private function startSupport(CustomerSession $session): array
     {
@@ -603,54 +603,54 @@ class WebhookService
         );
     }
 
-private function handleSupport(CustomerSession $session, string $message): array
-{
-    $conversation = $this->getOrCreateSupportConversation($session);
+    private function handleSupport(CustomerSession $session, string $message): array
+    {
+        $conversation = $this->getOrCreateSupportConversation($session);
 
-    SupportMessage::create([
-        'conversation_id' => $conversation->id,
-        'sender'          => 'customer',
-        'message'         => $message,
-        'is_read'         => false,
-    ]);
+        SupportMessage::create([
+            'conversation_id' => $conversation->id,
+            'sender'          => 'customer',
+            'message'         => $message,
+            'is_read'         => false,
+        ]);
 
-    return ['reply' => null]; 
-}
+        return ['reply' => null];
+    }
 
- private function getOrCreateSupportConversation(CustomerSession $session): SupportConversation
-{
-    $conversationId = data_get($session->context, 'support_conversation_id');
+    private function getOrCreateSupportConversation(CustomerSession $session): SupportConversation
+    {
+        $conversationId = data_get($session->context, 'support_conversation_id');
 
-    if ($conversationId) {
-        $existing = SupportConversation::find($conversationId);
-        if ($existing && $existing->status !== 'closed') {
+        if ($conversationId) {
+            $existing = SupportConversation::find($conversationId);
+            if ($existing && $existing->status !== 'closed') {
+                return $existing;
+            }
+        }
+
+        $existing = SupportConversation::where('customer_phone', $session->phone)
+            ->whereIn('status', ['open', 'in_progress'])
+            ->latest()
+            ->first();
+
+        if ($existing) {
+            $context                             = $session->context ?? [];
+            $context['support_conversation_id'] = $existing->id;
+            $this->sessionService->updateStep(
+                $session,
+                CustomerSession::STEP_SUPPORT,
+                context: $context
+            );
             return $existing;
         }
+
+        return SupportConversation::create([
+            'customer_phone' => $session->phone,
+            'customer_name'  => data_get($session->context, 'name'),
+            'status'         => 'open',
+        ]);
     }
 
-    // دور على محادثة مفتوحة لنفس الرقم أولاً
-    $existing = SupportConversation::where('customer_phone', $session->phone)
-        ->whereIn('status', ['open', 'in_progress'])
-        ->latest()
-        ->first();
-
-    if ($existing) {
-        $context = $session->context ?? [];
-        $context['support_conversation_id'] = $existing->id;
-        $this->sessionService->updateStep(
-            $session,
-            CustomerSession::STEP_SUPPORT,
-            context: $context
-        );
-        return $existing;
-    }
-
-    return SupportConversation::create([
-        'customer_phone' => $session->phone,
-        'customer_name'  => data_get($session->context, 'name'),
-        'status'         => 'open',
-    ]);
-}
     private function isSupportCommand(string $message): bool
     {
         return in_array(mb_strtolower(trim($message)), [
@@ -658,7 +658,6 @@ private function handleSupport(CustomerSession $session, string $message): array
         ], true);
     }
 
-    /* ================= UTILITIES ================= */
 
     private function handleReset(CustomerSession $session): array
     {

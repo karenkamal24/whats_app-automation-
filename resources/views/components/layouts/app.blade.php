@@ -46,7 +46,7 @@
         },
 
         channel(name) {
-            // Unsubscribe من القديم لو مختلف
+           
             if (activeChannelName && activeChannelName !== name) {
                 pusherClient.unsubscribe(activeChannelName);
             }
@@ -54,7 +54,7 @@
 
             const ch = pusherClient.subscribe(name);
 
-            // امسح أي listeners قديمة على نفس الـ channel
+
             ch.unbind_all();
 
             return {

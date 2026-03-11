@@ -9,20 +9,14 @@ class Category extends Model
 {
     protected $fillable = ['name', 'name_ar'];
 
-    /* ------------------------------------------------------------------ */
-    /*  Relationships                                                      */
-    /* ------------------------------------------------------------------ */
 
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Accessors                                                          */
-    /* ------------------------------------------------------------------ */
 
-    
+
     public function getLocalizedNameAttribute(): string
     {
         return app()->getLocale() === 'ar'

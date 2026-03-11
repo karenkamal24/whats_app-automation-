@@ -15,11 +15,7 @@ class ProductController extends Controller
         private readonly ProductService $productService,
     ) {}
 
-    /**
-     * GET /api/v1/products/search?name=iphone
-     *
-     * Search for active, in-stock products by name.
-     */
+ 
     public function search(Request $request): JsonResponse
     {
         $name = trim($request->query('name', ''));

@@ -20,15 +20,9 @@ class EditOrder extends EditRecord
         ];
     }
 
-    /*
-    |------------------------------------------------------------------
-    | When the admin saves changes from the Edit page
-    | we use OrderService to automatically send the WhatsApp message
-    |------------------------------------------------------------------
-    */
+
     protected function handleRecordUpdate($record, array $data): \Illuminate\Database\Eloquent\Model
     {
-        // If the status has changed, use the service
         if (isset($data['status']) && $record->status->value !== $data['status']) {
             $orderService = app(OrderService::class);
 
@@ -37,11 +31,9 @@ class EditOrder extends EditRecord
                 OrderStatus::from($data['status'])
             );
 
-            // Remove status from data so it doesn't get saved twice
             unset($data['status']);
         }
 
-        // Save any other updated fields
         if (! empty($data)) {
             $record->update($data);
         }

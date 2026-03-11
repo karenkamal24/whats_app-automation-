@@ -18,9 +18,7 @@ class OrderController extends Controller
         private readonly OrderService $orderService,
     ) {}
 
-    /**
-     * POST /api/v1/orders
-     */
+   
     public function store(CreateOrderRequest $request): JsonResponse
     {
         try {
@@ -35,9 +33,7 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * PATCH /api/v1/orders/{order}/status
-     */
+
     public function updateStatus(UpdateOrderStatusRequest $request, Order $order): JsonResponse
     {
         try {

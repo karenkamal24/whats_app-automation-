@@ -20,10 +20,6 @@ class ProductResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    /* ------------------------------------------------------------------ */
-    /*  Form                                                               */
-    /* ------------------------------------------------------------------ */
-
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -34,7 +30,7 @@ class ProductResource extends Resource
                     Forms\Components\Select::make('category_id')
                         ->label('Category')
                         ->relationship('category', 'name')
-                        ->getOptionLabelFromRecordUsing(fn ($record) => $record->localized_name)
+                        ->getOptionLabelFromRecordUsing(fn($record) => $record->localized_name)
                         ->searchable()
                         ->preload()
                         ->required(),
@@ -79,9 +75,6 @@ class ProductResource extends Resource
                 ])
                 ->columns(2),
 
-            /* ------------------------------------------------------------------ */
-            /*  Images                                                            */
-            /* ------------------------------------------------------------------ */
 
             Forms\Components\Section::make('Product Images')
                 ->schema([
@@ -118,9 +111,6 @@ class ProductResource extends Resource
         ]);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Table                                                              */
-    /* ------------------------------------------------------------------ */
 
     public static function table(Table $table): Table
     {
@@ -131,12 +121,12 @@ class ProductResource extends Resource
                     ->label('#')
                     ->sortable(),
 
-                Tables\Columns\ImageColumn::make('images.path')
-                    ->label('Image')
-                    ->disk('public')
-                    ->circular()
-                    ->stacked()
-                    ->limit(1),
+                // Tables\Columns\ImageColumn::make('images.path')
+                //     ->label('Image')
+                //     ->disk('public')
+                //     ->circular()
+                //     ->stacked()
+                //     ->limit(1),
 
                 Tables\Columns\TextColumn::make('localized_name')
                     ->label('Product')
@@ -155,7 +145,7 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('stock')
                     ->sortable()
                     ->badge()
-                    ->color(fn (int $state): string => match (true) {
+                    ->color(fn(int $state): string => match (true) {
                         $state === 0 => 'danger',
                         $state <= 5  => 'warning',
                         default      => 'success',
@@ -185,7 +175,7 @@ class ProductResource extends Resource
                     ->label('Active'),
 
                 Tables\Filters\Filter::make('out_of_stock')
-                    ->query(fn ($query) => $query->where('stock', 0))
+                    ->query(fn($query) => $query->where('stock', 0))
                     ->label('Out of Stock'),
 
             ])
@@ -202,18 +192,12 @@ class ProductResource extends Resource
             ]);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Relations                                                          */
-    /* ------------------------------------------------------------------ */
 
     public static function getRelations(): array
     {
         return [];
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Pages                                                              */
-    /* ------------------------------------------------------------------ */
 
     public static function getPages(): array
     {
@@ -224,6 +208,3 @@ class ProductResource extends Resource
         ];
     }
 }
-
-
-

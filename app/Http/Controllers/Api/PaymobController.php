@@ -20,9 +20,7 @@ class PaymobController extends Controller
         private readonly OrderService  $orderService,
     ) {}
 
-    /**
-     * POST /api/v1/paymob/create
-     */
+  
     public function create(CreatePaymobPaymentRequest $request): JsonResponse
     {
         try {
@@ -52,9 +50,7 @@ class PaymobController extends Controller
         }
     }
 
-    /**
-     * POST|GET /api/v1/paymob/webhook
-     */
+
     public function webhook(Request $request): JsonResponse
     {
         $payload = $request->all();
@@ -100,11 +96,7 @@ class PaymobController extends Controller
         }
 
         if ($success && ! $order->isPaid()) {
-            /*
-            |--------------------------------------------------------------
-            | ⭐ markAsPaid بيبعت الـ WhatsApp تلقائياً جوه الـ OrderService
-            |--------------------------------------------------------------
-            */
+
             $this->orderService->markAsPaid($order, (string) $transactionId);
 
             Log::info('Paymob webhook order marked as paid', [
@@ -115,9 +107,6 @@ class PaymobController extends Controller
         return ApiResponse::success('Webhook processed.');
     }
 
-    /**
-     * GET /api/v1/paymob/verify/{order}
-     */
     public function verify(Request $request, Order $order): JsonResponse
     {
         if ($order->isPaid()) {
